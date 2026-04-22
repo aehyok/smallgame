@@ -2,6 +2,7 @@ import { createCanvas } from "@napi-rs/canvas";
 import { Command } from "commander";
 import { mkdir } from "fs/promises";
 import { ARENA_H, ARENA_W, FPS } from "./engine/loop.js";
+import { preloadNodeAvatarImages } from "./games/cowboy-ghost/avatar-images.node.js";
 import {
   DEFAULT_GAME_ID,
   requireGameDefinition,
@@ -27,6 +28,7 @@ const from = Number.parseInt(opts.from, 10);
 const to = Number.parseInt(opts.to, 10);
 const dir = opts.dir;
 await mkdir(dir, { recursive: true });
+await preloadNodeAvatarImages();
 
 const canvas = createCanvas(ARENA_W, ARENA_H);
 const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
@@ -37,12 +39,14 @@ for (let seed = from; seed <= to; seed++) {
   const game = gameDef.create(seed);
   const rec = createRecorder(outPath, FPS, ARENA_W, ARENA_H);
   const t0 = Date.now();
+  let frameCount = 0;
   while (!game.isDone()) {
     game.step();
     game.render(ctx);
     rec.writeFrame(canvas.toBuffer("image/png"));
+    frameCount += 1;
   }
-  await rec.finish();
+  await rec.finish({ events: game.soundEvents, frameCount, fps: FPS });
   const sec = ((Date.now() - t0) / 1000).toFixed(2);
   console.log(
     `[${gameDef.id}:${seed}] ${gameDef.describeResult(game)} time=${sec}s → ${outPath}`,

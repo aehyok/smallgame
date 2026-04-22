@@ -13,6 +13,9 @@ export interface FighterStats {
   attackMax: number;
   cooldownMin: number;
   cooldownMax: number;
+  bulletSpeed: number;
+  bulletLife: number;
+  aimJitter: number;
 }
 
 export interface Fighter {
@@ -47,34 +50,51 @@ export interface DamageText {
   size: number;
 }
 
+export interface Bullet {
+  owner: FighterKind;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  damage: number;
+  radius: number;
+}
+
 export const FIGHTER_STATS: Record<FighterKind, FighterStats> = {
   cowboy: {
-    maxHp: 2200,
+    maxHp: 2600,
     radius: 28,
     accel: 3600,
     maxSpeed: 300,
     friction: 0.965,
     bounce: 0.88,
-    preferredRange: 170,
-    attackRange: 190,
-    attackMin: 170,
-    attackMax: 220,
-    cooldownMin: 60,
-    cooldownMax: 78,
+    preferredRange: 300,
+    attackRange: 430,
+    attackMin: 115,
+    attackMax: 150,
+    cooldownMin: 32,
+    cooldownMax: 42,
+    bulletSpeed: 980,
+    bulletLife: 38,
+    aimJitter: 0.045,
   },
   ghost: {
-    maxHp: 2200,
+    maxHp: 2600,
     radius: 26,
     accel: 4200,
     maxSpeed: 340,
     friction: 0.972,
     bounce: 0.9,
-    preferredRange: 52,
-    attackRange: 78,
-    attackMin: 6,
-    attackMax: 10,
-    cooldownMin: 6,
-    cooldownMax: 9,
+    preferredRange: 255,
+    attackRange: 380,
+    attackMin: 78,
+    attackMax: 108,
+    cooldownMin: 23,
+    cooldownMax: 31,
+    bulletSpeed: 1040,
+    bulletLife: 34,
+    aimJitter: 0.035,
   },
 };
 

@@ -1,3 +1,4 @@
+import { pushSound, type SoundEvent } from "../../audio/events.js";
 import {
   ARENA_H,
   ARENA_W,
@@ -49,6 +50,7 @@ export class TankGame {
   outcome: Outcome | null = null;
   screenShake = 0;
   screenFlash = 0;
+  readonly soundEvents: SoundEvent[] = [];
   private nextEntityId = 1;
 
   constructor(seed: number) {
@@ -197,6 +199,7 @@ export class TankGame {
       this.bullets.push(
         spawnBullet(this.mintId(), self, bx, by, self.turretAngle),
       );
+      pushSound(this.soundEvents, this.tick, "shot");
       self.fireCooldown = s.fireCooldown;
       for (let i = 0; i < 6; i++) {
         this.particles.push({
@@ -314,10 +317,16 @@ export class TankGame {
       t.shieldHp -= absorbed;
       remaining -= absorbed;
     }
+    const wasAlive = t.hp > 0;
     t.hp = Math.max(0, t.hp - remaining);
     t.hitFlash = 10;
     this.screenShake = Math.max(this.screenShake, 6);
     this.screenFlash = Math.max(this.screenFlash, 4);
+    if (wasAlive && t.hp <= 0) {
+      pushSound(this.soundEvents, this.tick, "boom");
+    } else {
+      pushSound(this.soundEvents, this.tick, "impact");
+    }
   }
 
   private spawnImpactParticles(x: number, y: number, color: string): void {
@@ -360,16 +369,21 @@ export class TankGame {
       this.outcome = { winner: "blue", endTick: this.tick };
       this.screenFlash = 10;
       this.screenShake = 14;
+      pushSound(this.soundEvents, this.tick, "fanfare");
     } else if (blueAlive === 0) {
       this.outcome = { winner: "red", endTick: this.tick };
       this.screenFlash = 10;
       this.screenShake = 14;
+      pushSound(this.soundEvents, this.tick, "fanfare");
     } else if (this.tick >= TOTAL_TICKS - OUTRO_TICKS - 1) {
       const redHp = this.teamHp("red");
       const blueHp = this.teamHp("blue");
       const winner: Team | "draw" =
         redHp > blueHp ? "red" : redHp < blueHp ? "blue" : "draw";
       this.outcome = { winner, endTick: this.tick };
+      if (winner !== "draw") {
+        pushSound(this.soundEvents, this.tick, "fanfare");
+      }
     }
   }
 

@@ -1,26 +1,30 @@
+import { pushSound, type SoundEvent } from "../../audio/events.js";
 import { DT, ARENA_H, ARENA_W, FPS } from "../../engine/loop.js";
 import { createRng, type Rng } from "../../engine/rng.js";
 import { clamp } from "../../engine/vec.js";
-import { createFighter, type DamageText, type Fighter, type FighterKind } from "./entity.js";
+import {
+  createFighter,
+  type Bullet,
+  type DamageText,
+  type Fighter,
+  type FighterKind,
+} from "./entity.js";
 import { drawGame } from "./render.js";
 
 export const BOUNDS = {
-  left: 34,
-  top: 122,
-  right: ARENA_W - 34,
-  bottom: ARENA_H - 34,
+  left: 48,
+  top: 180,
+  right: ARENA_W - 48,
+  bottom: ARENA_H - 180,
 };
 
 export const ROUND_SECONDS = 35;
 export const ROUND_TICKS = FPS * ROUND_SECONDS;
 const OUTRO_TICKS = FPS * 2;
 
-type AttackEvent = {
+type ShotEvent = {
   attacker: Fighter;
-  target: Fighter;
-  damage: number;
-  textColor: string;
-  knockback: number;
+  angle: number;
 };
 
 export class CowboyGhostGame {
@@ -30,7 +34,9 @@ export class CowboyGhostGame {
   outcome: { winner: FighterKind | "draw"; endTick: number } | null = null;
   cowboy: Fighter;
   ghost: Fighter;
+  bullets: Bullet[] = [];
   damageTexts: DamageText[] = [];
+  readonly soundEvents: SoundEvent[] = [];
 
   constructor(seed: number) {
     this.seed = seed;
@@ -56,7 +62,8 @@ export class CowboyGhostGame {
       this.integrateFighter(this.cowboy);
       this.integrateFighter(this.ghost);
       this.resolveFighterCollision(this.cowboy, this.ghost);
-      this.resolveAttacks();
+      this.resolveShots();
+      this.updateBullets();
       this.resolveOutcome();
     } else {
       this.cowboy.vx *= 0.94;
@@ -65,6 +72,7 @@ export class CowboyGhostGame {
       this.ghost.vy *= 0.94;
       this.integrateFighter(this.cowboy);
       this.integrateFighter(this.ghost);
+      this.updateBullets();
     }
 
     this.updateEffects();
@@ -128,21 +136,21 @@ export class CowboyGhostGame {
       const rangeError = clamp((dist - prefer) / 140, -1, 1);
       steerX += nx * self.stats.accel * rangeError;
       steerY += ny * self.stats.accel * rangeError;
-      steerX += tx * self.stats.accel * 0.55 * self.steerSign;
-      steerY += ty * self.stats.accel * 0.55 * self.steerSign;
-      if (dist < 110) {
+      steerX += tx * self.stats.accel * 0.4 * self.steerSign;
+      steerY += ty * self.stats.accel * 0.4 * self.steerSign;
+      if (dist < 180) {
         steerX -= nx * self.stats.accel * 0.9;
         steerY -= ny * self.stats.accel * 0.9;
       }
     } else {
-      const chase = dist > self.stats.attackRange ? 1 : 0.5;
+      const chase = dist > self.stats.attackRange * 0.9 ? 1 : 0.35;
       steerX += nx * self.stats.accel * chase;
       steerY += ny * self.stats.accel * chase;
-      steerX += tx * self.stats.accel * 0.15 * self.steerSign;
-      steerY += ty * self.stats.accel * 0.15 * self.steerSign;
-      if (dist < 48) {
-        steerX -= nx * self.stats.accel * 0.25;
-        steerY -= ny * self.stats.accel * 0.25;
+      steerX += tx * self.stats.accel * 0.28 * self.steerSign;
+      steerY += ty * self.stats.accel * 0.28 * self.steerSign;
+      if (dist < 170) {
+        steerX -= nx * self.stats.accel * 0.55;
+        steerY -= ny * self.stats.accel * 0.55;
       }
     }
 
@@ -174,9 +182,7 @@ export class CowboyGhostGame {
 
     self.vx *= self.stats.friction;
     self.vy *= self.stats.friction;
-    if (speed > 2) {
-      self.facing = Math.atan2(self.vy, self.vx);
-    }
+    self.facing = Math.atan2(dy, dx);
   }
 
   private integrateFighter(fighter: Fighter): void {
@@ -225,31 +231,31 @@ export class CowboyGhostGame {
     b.vy += ny * 18;
   }
 
-  private resolveAttacks(): void {
-    const attackEvents: AttackEvent[] = [];
-    this.collectAttack(this.cowboy, this.ghost, attackEvents);
-    this.collectAttack(this.ghost, this.cowboy, attackEvents);
-    for (const event of attackEvents) {
-      this.applyDamage(event);
+  private resolveShots(): void {
+    const shotEvents: ShotEvent[] = [];
+    this.collectShot(this.cowboy, this.ghost, shotEvents);
+    this.collectShot(this.ghost, this.cowboy, shotEvents);
+    for (const event of shotEvents) {
+      this.spawnBullet(event);
     }
   }
 
-  private collectAttack(
+  private collectShot(
     attacker: Fighter,
     target: Fighter,
-    attackEvents: AttackEvent[],
+    shotEvents: ShotEvent[],
   ): void {
     if (!attacker.alive || !target.alive) return;
     attacker.attackCooldown = Math.max(0, attacker.attackCooldown - 1);
     const dist = Math.hypot(target.x - attacker.x, target.y - attacker.y);
     if (attacker.attackCooldown > 0 || dist > attacker.stats.attackRange) return;
 
-    attackEvents.push({
+    const baseAngle = Math.atan2(target.y - attacker.y, target.x - attacker.x);
+    shotEvents.push({
       attacker,
-      target,
-      damage: this.rng.int(attacker.stats.attackMin, attacker.stats.attackMax),
-      textColor: attacker.kind === "cowboy" ? "#ffd166" : "#bdefff",
-      knockback: attacker.kind === "cowboy" ? 240 : 100,
+      angle:
+        baseAngle +
+        this.rng.range(-attacker.stats.aimJitter, attacker.stats.aimJitter),
     });
     attacker.attackCooldown = this.rng.int(
       attacker.stats.cooldownMin,
@@ -258,19 +264,80 @@ export class CowboyGhostGame {
     attacker.attackFlash = 8;
   }
 
-  private applyDamage(event: AttackEvent): void {
-    const { attacker, target, damage, textColor, knockback } = event;
+  private spawnBullet(event: ShotEvent): void {
+    const { attacker, angle } = event;
+    const muzzle = attacker.radius + 16;
+    this.bullets.push({
+      owner: attacker.kind,
+      x: attacker.x + Math.cos(angle) * muzzle,
+      y: attacker.y + Math.sin(angle) * muzzle,
+      vx: Math.cos(angle) * attacker.stats.bulletSpeed,
+      vy: Math.sin(angle) * attacker.stats.bulletSpeed,
+      life: attacker.stats.bulletLife,
+      damage: this.rng.int(attacker.stats.attackMin, attacker.stats.attackMax),
+      radius: attacker.kind === "cowboy" ? 5 : 4,
+    });
+    pushSound(this.soundEvents, this.tick, "shot");
+  }
+
+  private updateBullets(): void {
+    const next: Bullet[] = [];
+    for (const bullet of this.bullets) {
+      bullet.x += bullet.vx * DT;
+      bullet.y += bullet.vy * DT;
+      bullet.life -= 1;
+      if (bullet.life <= 0) continue;
+      if (
+        bullet.x < BOUNDS.left ||
+        bullet.x > BOUNDS.right ||
+        bullet.y < BOUNDS.top ||
+        bullet.y > BOUNDS.bottom
+      ) {
+        continue;
+      }
+
+      const target = bullet.owner === "cowboy" ? this.ghost : this.cowboy;
+      if (target.alive && this.bulletHitsFighter(bullet, target)) {
+        this.applyBulletDamage(bullet, target);
+        continue;
+      }
+      next.push(bullet);
+    }
+    this.bullets = next;
+  }
+
+  private bulletHitsFighter(bullet: Bullet, target: Fighter): boolean {
+    const dx = bullet.x - target.x;
+    const dy = bullet.y - target.y;
+    const hitRadius = target.radius + bullet.radius;
+    return dx * dx + dy * dy <= hitRadius * hitRadius;
+  }
+
+  private applyBulletDamage(bullet: Bullet, target: Fighter): void {
+    const attackerKind = bullet.owner;
+    const damage = bullet.damage;
+    const textColor = attackerKind === "cowboy" ? "#ffd166" : "#bdefff";
+    const knockback = attackerKind === "cowboy" ? 120 : 90;
+    const attacker =
+      attackerKind === "cowboy" ? this.cowboy : this.ghost;
     const dx = target.x - attacker.x;
     const dy = target.y - attacker.y;
     const dist = Math.hypot(dx, dy) || 1;
     const nx = dx / dist;
     const ny = dy / dist;
 
+    const wasAlive = target.alive;
     target.hp = Math.max(0, target.hp - damage);
     target.alive = target.hp > 0;
     target.hitFlash = 10;
     target.vx += nx * knockback;
     target.vy += ny * knockback;
+
+    if (wasAlive && !target.alive) {
+      pushSound(this.soundEvents, this.tick, "boom");
+    } else {
+      pushSound(this.soundEvents, this.tick, "impact");
+    }
 
     this.damageTexts.push({
       text: `-${damage}`,
@@ -281,7 +348,7 @@ export class CowboyGhostGame {
       life: 28,
       maxLife: 28,
       color: textColor,
-      size: attacker.kind === "cowboy" ? 30 : 24,
+      size: attackerKind === "cowboy" ? 30 : 24,
     });
   }
 
@@ -305,10 +372,12 @@ export class CowboyGhostGame {
     }
     if (!this.cowboy.alive) {
       this.outcome = { winner: "ghost", endTick: this.tick };
+      pushSound(this.soundEvents, this.tick, "fanfare");
       return;
     }
     if (!this.ghost.alive) {
       this.outcome = { winner: "cowboy", endTick: this.tick };
+      pushSound(this.soundEvents, this.tick, "fanfare");
       return;
     }
     if (this.tick >= ROUND_TICKS - 1) {
@@ -319,6 +388,7 @@ export class CowboyGhostGame {
           winner: this.cowboy.hp > this.ghost.hp ? "cowboy" : "ghost",
           endTick: this.tick,
         };
+        pushSound(this.soundEvents, this.tick, "fanfare");
       }
     }
   }

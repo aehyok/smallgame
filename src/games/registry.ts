@@ -1,3 +1,4 @@
+import type { SoundEvent } from "../audio/events.js";
 import { CowboyGhostGame } from "./cowboy-ghost/game.js";
 import { TankGame } from "./tank/game.js";
 
@@ -10,6 +11,7 @@ export interface GameInstance {
   readonly seed: number;
   tick: number;
   outcome: GameOutcome | null;
+  readonly soundEvents: SoundEvent[];
   step(): void;
   render(ctx: CanvasRenderingContext2D): void;
   isDone(): boolean;
