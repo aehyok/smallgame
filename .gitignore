@@ -3,3 +3,4 @@ output
 .DS_Store
 dist
 *.log
+.claude/
