@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:claude.ai)",
+      "Bash(npm --version)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(chmod +x /Users/aehyok/Desktop/github/smallgame/node_modules/ffmpeg-static/ffmpeg)",
+      "Bash(ffprobe -v error -show_entries format=duration,size -show_entries stream=width,height,codec_name,r_frame_rate -of default=noprint_wrappers=1 /Users/aehyok/Desktop/github/smallgame/output/battle-1.mp4)",
+      "Bash(shasum output/battle-1.mp4)",
+      "Bash(shasum output/battle-1.mp4 output/battle-1b.mp4)",
+      "Bash(shasum /Users/aehyok/Desktop/github/smallgame/output/*.mp4)",
+      "Bash(npx tsc *)",
+      "Bash(../node_modules/.bin/tsx src/cli.ts --seed 1 --out ../output/step1-1.mp4)",
+      "Bash(../node_modules/.bin/tsx src/cli.ts --seed 2 --out ../output/step1-2.mp4)",
+      "Bash(../node_modules/.bin/tsx src/cli.ts --seed 3 --out ../output/step1-3.mp4)",
+      "Bash(../node_modules/.bin/tsx src/cli.ts --seed 1 --out ../output/step1-1-rerun.mp4)"
+    ]
+  }
+}
