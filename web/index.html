@@ -56,6 +56,15 @@
       input[type="number"] {
         width: 90px;
       }
+      select {
+        font: inherit;
+        background: #1a2238;
+        color: #e8eef7;
+        border: 1px solid #2c3a5a;
+        padding: 6px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
       #info {
         font-size: 13px;
         opacity: 0.7;
@@ -65,6 +74,10 @@
   <body>
     <div class="wrap">
       <div class="bar">
+        <label
+          >game
+          <select id="game"></select>
+        </label>
         <label
           >seed
           <input id="seed" type="number" value="1" />

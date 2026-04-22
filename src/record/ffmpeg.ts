@@ -1,4 +1,4 @@
-import { spawn, type ChildProcessWithoutNullStreams } from "child_process";
+import { spawn } from "child_process";
 import ffmpegStatic from "ffmpeg-static";
 
 export interface Recorder {
@@ -37,7 +37,7 @@ export function createRecorder(
     outPath,
   ];
 
-  const proc: ChildProcessWithoutNullStreams = spawn(ffPath, args, {
+  const proc = spawn(ffPath, args, {
     stdio: ["pipe", "inherit", "inherit"],
   });
 

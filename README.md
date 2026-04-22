@@ -1,16 +1,17 @@
 # smallgame
 
-AI vs AI 坦克对战视频生成器。
+可复现的小游戏自动对战视频生成器。
 
-这个项目会根据给定的 `seed` 运行一局可复现的坦克对战，并输出一条竖屏 MP4 视频。它适合做“批量生成短视频素材”的小型内容流水线，也可以在浏览器里实时预览每个种子的战斗过程。
+这个项目会根据给定的 `seed` 运行一局可复现的小游戏对战，并输出一条竖屏 MP4 视频。它适合做“批量生成短视频素材”的小型内容流水线，也可以在浏览器里实时预览每个种子的战斗过程。
 
 ## 功能亮点
 
 - 给定相同 `seed`，游戏过程和最终视频结果保持一致
 - 单局固定输出 15 秒、`720 × 1280`、`60fps` 的 H.264 MP4
-- 浏览器预览与 Node 端视频生成共用同一套 `TankGame` 逻辑
+- 浏览器预览与 Node 端视频生成共用同一套游戏逻辑
 - 支持单条生成，也支持按种子区间批量出片
 - 使用 `@napi-rs/canvas` 渲染 PNG 帧，再通过 `ffmpeg-static` 编码视频
+- 当前内置 `tank` 与 `cowboy-ghost` 两个小游戏
 
 ## 环境要求
 
@@ -35,6 +36,7 @@ npm run dev
 
 默认会启动一个本地 Vite 开发服务。页面左上角可以：
 
+- 选择 `game`
 - 输入 `seed`
 - 重新开始当前对局
 - 切换到下一个 `seed`
@@ -50,13 +52,20 @@ npm run generate -- --seed 42
 默认输出到：
 
 ```text
-output/battle-42.mp4
+output/tank-battle-42.mp4
 ```
 
 自定义输出路径：
 
 ```bash
 npm run generate -- --seed 42 --out output/custom-42.mp4
+```
+
+选择游戏：
+
+```bash
+npm run generate -- --game tank --seed 42
+npm run generate -- --game cowboy-ghost --seed 42
 ```
 
 批量生成：
@@ -68,10 +77,10 @@ npm run batch -- --from 1 --to 10
 默认会输出到 `output/` 目录，例如：
 
 ```text
-output/battle-1.mp4
-output/battle-2.mp4
+output/tank-battle-1.mp4
+output/tank-battle-2.mp4
 ...
-output/battle-10.mp4
+output/tank-battle-10.mp4
 ```
 
 自定义批量输出目录：
@@ -80,12 +89,19 @@ output/battle-10.mp4
 npm run batch -- --from 11 --to 20 --dir output/set-b
 ```
 
+按游戏批量生成：
+
+```bash
+npm run batch -- --game tank --from 11 --to 20
+npm run batch -- --game cowboy-ghost --from 11 --to 20
+```
+
 ## 命令一览
 
 ```bash
 npm run dev
-npm run generate -- --seed <number> [--out <path>]
-npm run batch -- --from <start> --to <end> [--dir <path>]
+npm run generate -- --game <id> --seed <number> [--out <path>]
+npm run batch -- --game <id> --from <start> --to <end> [--dir <path>]
 ```
 
 ## 项目设计
@@ -100,6 +116,7 @@ npm run batch -- --from <start> --to <end> [--dir <path>]
 ```text
 src/
   engine/       通用基础：随机数、向量、主循环常量
+  games/        游戏注册表与各个小游戏实现
   games/tank/   坦克游戏逻辑、AI、渲染
   record/       视频录制与 ffmpeg 管道封装
   cli.ts        单条视频生成入口
