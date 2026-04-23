@@ -10,13 +10,13 @@ export interface MuxPlan {
 const AUDIO_INPUT_OFFSET = 1;
 
 const KIND_GAIN: Record<SoundKind, number> = {
-  shot: 0.55,
-  impact: 0.7,
-  boom: 0.9,
+  shot: 0.95,
+  impact: 0.85,
+  boom: 1.0,
   fanfare: 1.0,
 };
 
-const BGM_GAIN = 0.35;
+const BGM_GAIN = 0.22;
 
 export function planAudioMux(
   events: SoundEvent[],
