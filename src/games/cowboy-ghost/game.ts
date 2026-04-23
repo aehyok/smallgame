@@ -22,6 +22,13 @@ export const ROUND_SECONDS = 35;
 export const ROUND_TICKS = FPS * ROUND_SECONDS;
 const OUTRO_TICKS = FPS * 2;
 
+export const MIN_TEAM_SIZE = 1;
+export const MAX_TEAM_SIZE = 6;
+
+export interface CowboyGhostOptions {
+  count?: number;
+}
+
 type ShotEvent = {
   attacker: Fighter;
   angle: number;
@@ -30,48 +37,83 @@ type ShotEvent = {
 export class CowboyGhostGame {
   readonly seed: number;
   readonly rng: Rng;
+  readonly teamSize: number;
   tick = 0;
   outcome: { winner: FighterKind | "draw"; endTick: number } | null = null;
-  cowboy: Fighter;
-  ghost: Fighter;
+  cowboys: Fighter[];
+  ghosts: Fighter[];
   bullets: Bullet[] = [];
   damageTexts: DamageText[] = [];
   readonly soundEvents: SoundEvent[] = [];
 
-  constructor(seed: number) {
+  constructor(seed: number, options: CowboyGhostOptions = {}) {
     this.seed = seed;
     this.rng = createRng(seed);
-    this.cowboy = createFighter(
-      "cowboy",
-      BOUNDS.left + 180 + this.rng.range(-20, 20),
-      BOUNDS.top + 280 + this.rng.range(-80, 80),
+    this.teamSize = clamp(
+      Math.floor(options.count ?? 1),
+      MIN_TEAM_SIZE,
+      MAX_TEAM_SIZE,
     );
-    this.ghost = createFighter(
-      "ghost",
-      BOUNDS.right - 180 + this.rng.range(-20, 20),
-      BOUNDS.bottom - 320 + this.rng.range(-90, 90),
-    );
+
+    this.cowboys = [];
+    this.ghosts = [];
+    const arenaTop = BOUNDS.top + 160;
+    const arenaBottom = BOUNDS.bottom - 160;
+    const arenaH = arenaBottom - arenaTop;
+
+    for (let i = 0; i < this.teamSize; i++) {
+      const frac = this.teamSize === 1 ? 0.5 : i / (this.teamSize - 1);
+      const label = this.teamSize === 1 ? "Trump" : `Trump ${i + 1}`;
+      const y = arenaTop + frac * arenaH + this.rng.range(-28, 28);
+      this.cowboys.push(
+        createFighter(
+          "cowboy",
+          BOUNDS.left + 160 + this.rng.range(-24, 24),
+          y,
+          label,
+        ),
+      );
+    }
+
+    for (let i = 0; i < this.teamSize; i++) {
+      const frac = this.teamSize === 1 ? 0.5 : i / (this.teamSize - 1);
+      const label = this.teamSize === 1 ? "Musk" : `Musk ${i + 1}`;
+      const y = arenaTop + frac * arenaH + this.rng.range(-28, 28);
+      this.ghosts.push(
+        createFighter(
+          "ghost",
+          BOUNDS.right - 160 + this.rng.range(-24, 24),
+          y,
+          label,
+        ),
+      );
+    }
   }
 
   step(): void {
     const combatActive = !this.outcome;
 
     if (combatActive) {
-      this.updateFighterMovement(this.cowboy, this.ghost);
-      this.updateFighterMovement(this.ghost, this.cowboy);
-      this.integrateFighter(this.cowboy);
-      this.integrateFighter(this.ghost);
-      this.resolveFighterCollision(this.cowboy, this.ghost);
+      for (const self of this.cowboys) {
+        const target = this.nearestEnemy(self);
+        this.updateFighterMovement(self, target);
+      }
+      for (const self of this.ghosts) {
+        const target = this.nearestEnemy(self);
+        this.updateFighterMovement(self, target);
+      }
+      for (const f of this.cowboys) this.integrateFighter(f);
+      for (const f of this.ghosts) this.integrateFighter(f);
+      this.resolveFighterCollisions();
       this.resolveShots();
       this.updateBullets();
       this.resolveOutcome();
     } else {
-      this.cowboy.vx *= 0.94;
-      this.cowboy.vy *= 0.94;
-      this.ghost.vx *= 0.94;
-      this.ghost.vy *= 0.94;
-      this.integrateFighter(this.cowboy);
-      this.integrateFighter(this.ghost);
+      for (const f of this.allFighters()) {
+        f.vx *= 0.94;
+        f.vy *= 0.94;
+        this.integrateFighter(f);
+      }
       this.updateBullets();
     }
 
@@ -79,18 +121,43 @@ export class CowboyGhostGame {
     this.tick += 1;
   }
 
+  teamHp(kind: FighterKind): number {
+    const team = kind === "cowboy" ? this.cowboys : this.ghosts;
+    let sum = 0;
+    for (const f of team) sum += Math.max(0, f.hp);
+    return sum;
+  }
+
+  teamMaxHp(kind: FighterKind): number {
+    const team = kind === "cowboy" ? this.cowboys : this.ghosts;
+    let sum = 0;
+    for (const f of team) sum += f.maxHp;
+    return sum;
+  }
+
+  teamAliveCount(kind: FighterKind): number {
+    const team = kind === "cowboy" ? this.cowboys : this.ghosts;
+    let n = 0;
+    for (const f of team) if (f.alive) n++;
+    return n;
+  }
+
   fighterHp(kind: FighterKind): number {
-    return kind === "cowboy" ? this.cowboy.hp : this.ghost.hp;
+    return this.teamHp(kind);
+  }
+
+  teamLabel(kind: FighterKind): string {
+    return kind === "cowboy" ? "Trump" : "Musk";
   }
 
   fighterLabel(kind: FighterKind): string {
-    return kind === "cowboy" ? this.cowboy.label : this.ghost.label;
+    return this.teamLabel(kind);
   }
 
   winnerLabel(): string {
     if (!this.outcome) return "unknown";
     if (this.outcome.winner === "draw") return "draw";
-    return this.fighterLabel(this.outcome.winner);
+    return this.teamLabel(this.outcome.winner);
   }
 
   isDone(): boolean {
@@ -104,13 +171,40 @@ export class CowboyGhostGame {
     drawGame(ctx, this);
   }
 
-  private updateFighterMovement(self: Fighter, target: Fighter): void {
+  allFighters(): Fighter[] {
+    return [...this.cowboys, ...this.ghosts];
+  }
+
+  private nearestEnemy(self: Fighter): Fighter | null {
+    const enemies = self.kind === "cowboy" ? this.ghosts : this.cowboys;
+    let best: Fighter | null = null;
+    let bestD2 = Infinity;
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      const dx = e.x - self.x;
+      const dy = e.y - self.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD2) {
+        bestD2 = d2;
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  private updateFighterMovement(self: Fighter, target: Fighter | null): void {
     self.hitFlash = Math.max(0, self.hitFlash - 1);
     self.attackFlash = Math.max(0, self.attackFlash - 1);
 
     if (!self.alive) {
       self.vx *= 0.9;
       self.vy *= 0.9;
+      return;
+    }
+
+    if (!target) {
+      self.vx *= 0.92;
+      self.vy *= 0.92;
       return;
     }
 
@@ -211,7 +305,17 @@ export class CowboyGhostGame {
     }
   }
 
+  private resolveFighterCollisions(): void {
+    const all = this.allFighters();
+    for (let i = 0; i < all.length; i++) {
+      for (let j = i + 1; j < all.length; j++) {
+        this.resolveFighterCollision(all[i], all[j]);
+      }
+    }
+  }
+
   private resolveFighterCollision(a: Fighter, b: Fighter): void {
+    if (!a.alive || !b.alive) return;
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const dist = Math.hypot(dx, dy) || 1;
@@ -225,16 +329,23 @@ export class CowboyGhostGame {
     a.y -= ny * overlap * 0.5;
     b.x += nx * overlap * 0.5;
     b.y += ny * overlap * 0.5;
-    a.vx -= nx * 18;
-    a.vy -= ny * 18;
-    b.vx += nx * 18;
-    b.vy += ny * 18;
+    const pushMag = a.kind !== b.kind ? 18 : 10;
+    a.vx -= nx * pushMag;
+    a.vy -= ny * pushMag;
+    b.vx += nx * pushMag;
+    b.vy += ny * pushMag;
   }
 
   private resolveShots(): void {
     const shotEvents: ShotEvent[] = [];
-    this.collectShot(this.cowboy, this.ghost, shotEvents);
-    this.collectShot(this.ghost, this.cowboy, shotEvents);
+    for (const attacker of this.cowboys) {
+      const target = this.nearestEnemy(attacker);
+      if (target) this.collectShot(attacker, target, shotEvents);
+    }
+    for (const attacker of this.ghosts) {
+      const target = this.nearestEnemy(attacker);
+      if (target) this.collectShot(attacker, target, shotEvents);
+    }
     for (const event of shotEvents) {
       this.spawnBullet(event);
     }
@@ -296,11 +407,18 @@ export class CowboyGhostGame {
         continue;
       }
 
-      const target = bullet.owner === "cowboy" ? this.ghost : this.cowboy;
-      if (target.alive && this.bulletHitsFighter(bullet, target)) {
-        this.applyBulletDamage(bullet, target);
-        continue;
+      const targets =
+        bullet.owner === "cowboy" ? this.ghosts : this.cowboys;
+      let consumed = false;
+      for (const target of targets) {
+        if (!target.alive) continue;
+        if (this.bulletHitsFighter(bullet, target)) {
+          this.applyBulletDamage(bullet, target);
+          consumed = true;
+          break;
+        }
       }
+      if (consumed) continue;
       next.push(bullet);
     }
     this.bullets = next;
@@ -318,13 +436,10 @@ export class CowboyGhostGame {
     const damage = bullet.damage;
     const textColor = attackerKind === "cowboy" ? "#ffd166" : "#bdefff";
     const knockback = attackerKind === "cowboy" ? 120 : 90;
-    const attacker =
-      attackerKind === "cowboy" ? this.cowboy : this.ghost;
-    const dx = target.x - attacker.x;
-    const dy = target.y - attacker.y;
-    const dist = Math.hypot(dx, dy) || 1;
-    const nx = dx / dist;
-    const ny = dy / dist;
+
+    const bulletSpeed = Math.hypot(bullet.vx, bullet.vy) || 1;
+    const nx = bullet.vx / bulletSpeed;
+    const ny = bullet.vy / bulletSpeed;
 
     const wasAlive = target.alive;
     target.hp = Math.max(0, target.hp - damage);
@@ -366,26 +481,30 @@ export class CowboyGhostGame {
 
   private resolveOutcome(): void {
     if (this.outcome) return;
-    if (!this.cowboy.alive && !this.ghost.alive) {
+    const cowboyAlive = this.teamAliveCount("cowboy");
+    const ghostAlive = this.teamAliveCount("ghost");
+    if (cowboyAlive === 0 && ghostAlive === 0) {
       this.outcome = { winner: "draw", endTick: this.tick };
       return;
     }
-    if (!this.cowboy.alive) {
+    if (cowboyAlive === 0) {
       this.outcome = { winner: "ghost", endTick: this.tick };
       pushSound(this.soundEvents, this.tick, "fanfare");
       return;
     }
-    if (!this.ghost.alive) {
+    if (ghostAlive === 0) {
       this.outcome = { winner: "cowboy", endTick: this.tick };
       pushSound(this.soundEvents, this.tick, "fanfare");
       return;
     }
     if (this.tick >= ROUND_TICKS - 1) {
-      if (this.cowboy.hp === this.ghost.hp) {
+      const cowboyHp = this.teamHp("cowboy");
+      const ghostHp = this.teamHp("ghost");
+      if (cowboyHp === ghostHp) {
         this.outcome = { winner: "draw", endTick: this.tick };
       } else {
         this.outcome = {
-          winner: this.cowboy.hp > this.ghost.hp ? "cowboy" : "ghost",
+          winner: cowboyHp > ghostHp ? "cowboy" : "ghost",
           endTick: this.tick,
         };
         pushSound(this.soundEvents, this.tick, "fanfare");

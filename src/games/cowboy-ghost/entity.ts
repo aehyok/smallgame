@@ -102,11 +102,12 @@ export function createFighter(
   kind: FighterKind,
   x: number,
   y: number,
+  label?: string,
 ): Fighter {
   const stats = FIGHTER_STATS[kind];
   return {
     kind,
-    label: kind === "cowboy" ? "Trump" : "Musk",
+    label: label ?? (kind === "cowboy" ? "Trump" : "Musk"),
     x,
     y,
     vx: 0,

@@ -17,22 +17,26 @@ export interface GameInstance {
   isDone(): boolean;
 }
 
+export interface GameOptions {
+  count?: number;
+}
+
 export interface GameDefinition {
   id: string;
   title: string;
-  create(seed: number): GameInstance;
+  create(seed: number, options?: GameOptions): GameInstance;
   describePreview(game: GameInstance): string;
   describeResult(game: GameInstance): string;
-  outputFileName(seed: number): string;
+  outputFileName(seed: number, options?: GameOptions): string;
 }
 
 function defineGame<TGame extends GameInstance>(definition: {
   id: string;
   title: string;
-  create(seed: number): TGame;
+  create(seed: number, options?: GameOptions): TGame;
   describePreview(game: TGame): string;
   describeResult(game: TGame): string;
-  outputFileName(seed: number): string;
+  outputFileName(seed: number, options?: GameOptions): string;
 }): GameDefinition {
   return definition as GameDefinition;
 }
@@ -56,12 +60,22 @@ export const GAME_DEFINITIONS: readonly GameDefinition[] = [
   defineGame({
     id: "cowboy-ghost",
     title: "Trump vs Musk",
-    create: (seed: number) => new CowboyGhostGame(seed),
-    describePreview: (game: CowboyGhostGame) =>
-      `tick=${game.tick} trump=${Math.ceil(game.fighterHp("cowboy"))} musk=${Math.ceil(game.fighterHp("ghost"))} ${game.outcome ? `→ ${game.winnerLabel()} wins` : ""}`,
+    create: (seed: number, options?: GameOptions) =>
+      new CowboyGhostGame(seed, { count: options?.count }),
+    describePreview: (game: CowboyGhostGame) => {
+      const tag = game.teamSize > 1 ? ` ${game.teamSize}v${game.teamSize}` : "";
+      const cowboyAlive = game.teamAliveCount("cowboy");
+      const ghostAlive = game.teamAliveCount("ghost");
+      return `tick=${game.tick}${tag} trump=${Math.ceil(game.fighterHp("cowboy"))}(${cowboyAlive}) musk=${Math.ceil(game.fighterHp("ghost"))}(${ghostAlive}) ${game.outcome ? `→ ${game.winnerLabel()} wins` : ""}`;
+    },
     describeResult: (game: CowboyGhostGame) =>
-      `winner=${game.winnerLabel()} ticks=${game.tick}`,
-    outputFileName: (seed: number) => `cowboy-ghost-${seed}.mp4`,
+      `winner=${game.winnerLabel()} teamSize=${game.teamSize} ticks=${game.tick}`,
+    outputFileName: (seed: number, options?: GameOptions) => {
+      const count = Math.max(1, Math.floor(options?.count ?? 1));
+      return count > 1
+        ? `cowboy-ghost-${count}v${count}-${seed}.mp4`
+        : `cowboy-ghost-${seed}.mp4`;
+    },
   }),
 ];
 

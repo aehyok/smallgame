@@ -15,19 +15,27 @@ program
   .option("-g, --game <id>", "Game id", DEFAULT_GAME_ID)
   .option("-s, --seed <n>", "RNG seed", "1")
   .option("-o, --out <path>", "Output MP4 path")
+  .option("-c, --count <n>", "Team size (cowboy-ghost: N vs N)", "1")
   .parse();
 
-const opts = program.opts<{ game: string; seed: string; out?: string }>();
+const opts = program.opts<{
+  game: string;
+  seed: string;
+  out?: string;
+  count: string;
+}>();
 const gameDef = requireGameDefinition(opts.game);
 const seed = Number.parseInt(opts.seed, 10) || 1;
-const outPath = opts.out ?? `output/${gameDef.outputFileName(seed)}`;
+const count = Math.max(1, Number.parseInt(opts.count, 10) || 1);
+const gameOptions = { count };
+const outPath = opts.out ?? `output/${gameDef.outputFileName(seed, gameOptions)}`;
 
 await mkdir(dirname(outPath) || ".", { recursive: true });
 await preloadNodeAvatarImages();
 
 const canvas = createCanvas(ARENA_W, ARENA_H);
 const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
-const game = gameDef.create(seed);
+const game = gameDef.create(seed, gameOptions);
 const recorder = createRecorder(outPath, FPS, ARENA_W, ARENA_H);
 
 const t0 = Date.now();

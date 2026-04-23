@@ -15,12 +15,11 @@ export function drawGame(
 ): void {
   drawBackground(ctx);
   drawArena(ctx);
-  drawTrail(ctx, game.ghost, MUSK);
+  for (const ghost of game.ghosts) drawTrail(ctx, ghost, MUSK);
   drawBullets(ctx, game.bullets);
-  drawFighterShadow(ctx, game.cowboy);
-  drawFighterShadow(ctx, game.ghost);
-  drawLittleFighter(ctx, game.ghost);
-  drawLittleFighter(ctx, game.cowboy);
+  for (const f of game.allFighters()) drawFighterShadow(ctx, f);
+  for (const ghost of game.ghosts) drawLittleFighter(ctx, ghost);
+  for (const cowboy of game.cowboys) drawLittleFighter(ctx, cowboy);
   drawDamageTexts(ctx, game.damageTexts);
   drawHud(ctx, game);
   drawResult(ctx, game);
@@ -575,13 +574,27 @@ function drawHud(ctx: CanvasRenderingContext2D, game: CowboyGhostGame): void {
   ctx.font = "bold 20px sans-serif";
   ctx.fillText(`TIME ${String(remaining).padStart(2, "0")}`, ARENA_W / 2, 112);
 
+  const cowboyHp = Math.ceil(game.teamHp("cowboy"));
+  const ghostHp = Math.ceil(game.teamHp("ghost"));
+  const cowboyAlive = game.teamAliveCount("cowboy");
+  const ghostAlive = game.teamAliveCount("ghost");
+  const sizeTag = game.teamSize > 1 ? ` x${game.teamSize}` : "";
+
   ctx.textAlign = "left";
   ctx.fillStyle = TRUMP;
-  ctx.fillText(`${game.cowboy.label} ${Math.ceil(Math.max(0, game.cowboy.hp))}`, 58, 112);
+  ctx.fillText(
+    `${game.teamLabel("cowboy")}${sizeTag} ${cowboyHp} (${cowboyAlive})`,
+    58,
+    112,
+  );
 
   ctx.textAlign = "right";
   ctx.fillStyle = MUSK;
-  ctx.fillText(`${game.ghost.label} ${Math.ceil(Math.max(0, game.ghost.hp))}`, ARENA_W - 58, 112);
+  ctx.fillText(
+    `${game.teamLabel("ghost")}${sizeTag} ${ghostHp} (${ghostAlive})`,
+    ARENA_W - 58,
+    112,
+  );
 
   ctx.fillStyle = "rgba(0,0,0,0.36)";
   ctx.fillRect(0, BOUNDS.bottom + 18, ARENA_W, ARENA_H - (BOUNDS.bottom + 18));
@@ -599,10 +612,10 @@ function drawResult(ctx: CanvasRenderingContext2D, game: CowboyGhostGame): void 
   let text = "DRAW";
   let color = "#ffffff";
   if (game.outcome.winner === "cowboy") {
-    text = `${game.cowboy.label.toUpperCase()} WINS`;
+    text = `${game.teamLabel("cowboy").toUpperCase()} WINS`;
     color = TRUMP;
   } else if (game.outcome.winner === "ghost") {
-    text = `${game.ghost.label.toUpperCase()} WINS`;
+    text = `${game.teamLabel("ghost").toUpperCase()} WINS`;
     color = MUSK;
   }
 

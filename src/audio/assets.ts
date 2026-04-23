@@ -6,7 +6,7 @@ import { dirname, resolve } from "path";
 import type { SoundKind } from "./events.js";
 
 const FF_PATH = (ffmpegStatic as unknown as string) || "ffmpeg";
-const ASSETS_DIR = resolve("assets");
+const ASSETS_DIR = resolve("public");
 
 export const SFX_PATHS: Record<SoundKind, string> = {
   shot: `${ASSETS_DIR}/sfx/shot.wav`,

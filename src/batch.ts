@@ -15,6 +15,7 @@ program
   .option("--from <n>", "start seed (inclusive)", "1")
   .option("--to <n>", "end seed (inclusive)", "10")
   .option("--dir <path>", "output directory", "output")
+  .option("-c, --count <n>", "Team size (cowboy-ghost: N vs N)", "1")
   .parse();
 
 const opts = program.opts<{
@@ -22,11 +23,14 @@ const opts = program.opts<{
   from: string;
   to: string;
   dir: string;
+  count: string;
 }>();
 const gameDef = requireGameDefinition(opts.game);
 const from = Number.parseInt(opts.from, 10);
 const to = Number.parseInt(opts.to, 10);
 const dir = opts.dir;
+const count = Math.max(1, Number.parseInt(opts.count, 10) || 1);
+const gameOptions = { count };
 await mkdir(dir, { recursive: true });
 await preloadNodeAvatarImages();
 
@@ -35,8 +39,8 @@ const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
 
 const overallStart = Date.now();
 for (let seed = from; seed <= to; seed++) {
-  const outPath = `${dir}/${gameDef.outputFileName(seed)}`;
-  const game = gameDef.create(seed);
+  const outPath = `${dir}/${gameDef.outputFileName(seed, gameOptions)}`;
+  const game = gameDef.create(seed, gameOptions);
   const rec = createRecorder(outPath, FPS, ARENA_W, ARENA_H);
   const t0 = Date.now();
   let frameCount = 0;
