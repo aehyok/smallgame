@@ -1,8 +1,22 @@
-import { createCanvas } from "@napi-rs/canvas";
+import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
 import { Command } from "commander";
+import { existsSync } from "fs";
 import { mkdir } from "fs/promises";
 import { ARENA_H, ARENA_W, FPS } from "./engine/loop.js";
 import { preloadNodeAvatarImages } from "./games/cowboy-ghost/avatar-images.node.js";
+
+const CJK_FONT_PATHS = [
+  "C:\\Windows\\Fonts\\msyh.ttc",
+  "C:\\Windows\\Fonts\\simhei.ttf",
+  "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+  "/System/Library/Fonts/PingFang.ttc",
+];
+for (const fp of CJK_FONT_PATHS) {
+  if (existsSync(fp)) {
+    GlobalFonts.registerFromPath(fp, "CJK");
+    break;
+  }
+}
 import {
   DEFAULT_GAME_ID,
   requireGameDefinition,
